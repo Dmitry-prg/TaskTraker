@@ -23,8 +23,6 @@
     meta:          document.getElementById('projectMeta'),
     progress:      document.getElementById('projectProgress'),
     addTaskBtn:    document.getElementById('addTaskBtn'),
-    editBtn:       document.getElementById('editProjectBtn'),
-    delBtn:        document.getElementById('deleteProjectBtn'),
     taskDialog:    document.getElementById('taskDialog'),
     taskForm:      document.getElementById('taskForm'),
     taskTitle:     document.getElementById('taskDialogTitle'),
@@ -37,6 +35,9 @@
     subtasksCounter: document.getElementById('subtasksCounter'),
     subtaskInput:  document.getElementById('subtaskInput'),
     subtaskAddBtn: document.getElementById('subtaskAddBtn'),
+
+    mobileMenuBtn: document.getElementById('mobileMenuBtn'),
+    mobileMenu:    document.getElementById('mobileMenu'),
   };
 
   const tTitle  = document.getElementById('tTitle');
@@ -49,7 +50,8 @@
   const pStart = document.getElementById('pStart');
   const pEnd   = document.getElementById('pEnd');
 
-  setupThemeButton(document.getElementById('themeBtn'));
+  /* Тема — обе кнопки */
+  document.querySelectorAll('[data-action="toggle-theme"]').forEach(btn => setupThemeButton(btn));
 
   let project = null;
   let tasks = [];
@@ -57,9 +59,6 @@
   let draggedTaskId = null;
   let dialogSubtasks = [];
 
-  /* Состояние Gantt:
-     ganttDataRange — полный диапазон данных (проект + все задачи), в мс
-     ganttView      — текущий видимый диапазон (зум + панорамирование), в мс */
   let ganttDataRange = null;
   let ganttView = null;
 
@@ -70,9 +69,6 @@
     return 's-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
   }
 
-  /* Прогресс задачи:
-     • есть подзадачи  → done/total (если статус done — 100%)
-     • нет подзадач: todo → 0, in_progress → 50, done → 100 */
   function taskProgress(task) {
     const subs = Array.isArray(task.subtasks) ? task.subtasks : [];
     if (subs.length) {
@@ -84,6 +80,67 @@
     if (task.status === 'in_progress') return 50;
     return 0;
   }
+
+  /* ============================================================
+     Мобильное меню
+     ============================================================ */
+  function openMobileMenu() {
+    if (!els.mobileMenu) return;
+    els.mobileMenu.hidden = false;
+    els.mobileMenu.classList.remove('closing');
+    els.mobileMenuBtn?.setAttribute('aria-expanded', 'true');
+  }
+  function closeMobileMenu(instant = false) {
+    if (!els.mobileMenu || els.mobileMenu.hidden) return;
+    els.mobileMenuBtn?.setAttribute('aria-expanded', 'false');
+    if (instant) {
+      els.mobileMenu.hidden = true;
+      els.mobileMenu.classList.remove('closing');
+      return;
+    }
+    els.mobileMenu.classList.add('closing');
+    setTimeout(() => {
+      els.mobileMenu.hidden = true;
+      els.mobileMenu.classList.remove('closing');
+    }, 140);
+  }
+
+  els.mobileMenuBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (els.mobileMenu.hidden) openMobileMenu();
+    else closeMobileMenu();
+  });
+
+  // Клик по пункту меню — выполняем и закрываем
+  els.mobileMenu?.addEventListener('click', (e) => {
+    const item = e.target.closest('.menu-item');
+    if (!item) return;
+    // обработчик действия вызовется через делегирование ниже
+    setTimeout(() => closeMobileMenu(), 0);
+  });
+
+  // Клик вне меню — закрываем
+  document.addEventListener('click', (e) => {
+    if (!els.mobileMenu || els.mobileMenu.hidden) return;
+    if (els.mobileMenu.contains(e.target)) return;
+    if (els.mobileMenuBtn?.contains(e.target)) return;
+    closeMobileMenu();
+  });
+
+  // Escape — закрыть
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeMobileMenu();
+  });
+
+  /* ============================================================
+     Делегированные действия шапки
+     ============================================================ */
+  document.querySelectorAll('[data-action="edit-project"]').forEach(btn => {
+    btn.addEventListener('click', () => openProjectDialog());
+  });
+  document.querySelectorAll('[data-action="delete-project"]').forEach(btn => {
+    btn.addEventListener('click', () => deleteProject());
+  });
 
   /* ============================================================
      Загрузка
@@ -305,9 +362,6 @@
   /* ============================================================
      Gantt: диапазон данных и отрисовка
      ============================================================ */
-
-  /* Полный диапазон (проект + задачи) в мс с небольшим отступом.
-     Возвращает null, если ни у проекта, ни у задач нет дат. */
   function computeGanttDataRange() {
     let minD = toDate(project.start_date);
     let maxD = toDate(project.end_date);
@@ -327,7 +381,6 @@
     return { min: min - pad, max: max + pad };
   }
 
-  /* Первичная отрисовка: считаем данные и сбрасываем вид */
   function renderGantt() {
     ganttDataRange = computeGanttDataRange();
     if (!ganttDataRange) {
@@ -343,7 +396,17 @@
     drawGantt();
   }
 
-  /* Отрисовка по текущему ganttView */
+  /* --- Планировщик отрисовки через rAF: предотвращает дёргание --- */
+  let rafPending = false;
+  function scheduleDraw() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => {
+      rafPending = false;
+      drawGantt();
+    });
+  }
+
   function drawGantt() {
     if (!ganttView || !ganttDataRange) return;
     const container = els.gantt;
@@ -354,13 +417,11 @@
     const span = maxT - minT || DAY;
     const pct = (t) => ((t - minT) / span) * 100;
 
-    /* Границы проекта */
     const projStartD = toDate(project.start_date);
     const projEndD   = toDate(project.end_date);
     const projStartPct = projStartD ? pct(projStartD.getTime()) : null;
     const projEndPct   = projEndD   ? pct(projEndD.getTime() + DAY) : null;
 
-    /* Тики */
     const totalDays = Math.ceil((maxT - minT) / DAY);
     let stepDays;
     if (totalDays <= 10) stepDays = 1;
@@ -384,7 +445,6 @@
       });
     }
 
-    /* Сегодня */
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayMid = new Date();
@@ -395,7 +455,6 @@
     const todayPct      = pct(todayMid.getTime());
     const showToday     = todayColRight >= 0 && todayColLeft <= 100;
 
-    /* Слои */
     function addTodayColumn(track) {
       if (!showToday) return;
       const left = Math.max(todayColLeft, 0);
@@ -455,7 +514,6 @@
       track.appendChild(line);
     }
 
-    /* Ось */
     const head = document.createElement('div');
     head.className = 'gantt-row gantt-head';
     head.innerHTML = `<div class="gantt-label"></div><div class="gantt-track gantt-axis"></div>`;
@@ -481,7 +539,6 @@
       return;
     }
 
-    /* Строки задач */
     for (const task of tasks) {
       const s = toDate(task.start_date);
       const e = toDate(task.end_date);
@@ -574,12 +631,8 @@
   }
 
   /* ============================================================
-     Взаимодействия с Gantt:
-     • зум колёсиком (мышь) и пинч-зум (тач)
-     • панорамирование правой кнопкой мыши и одним пальцем
-     • двойной клик — сброс к полному диапазону
+     Взаимодействия с Gantt
      ============================================================ */
-
   function clampGanttView(newMin, newMax) {
     const limitMin = ganttDataRange.min;
     const limitMax = ganttDataRange.max;
@@ -598,18 +651,11 @@
     const el = els.gantt;
     if (!el) return;
 
-    /* Отключаем нативные жесты (скролл, зум страницы) над графиком.
-       Управление масштабом и панорамированием берём на себя. */
-    el.style.touchAction = 'none';
-    el.style.webkitUserSelect = 'none';
-    el.style.userSelect = 'none';
-
-    /* ---------- ЗУМ КОЛЁСИКОМ (мышь / трекпад) ---------- */
+    /* ------ Мышь: зум колёсиком ------ */
     el.addEventListener('wheel', (e) => {
       if (!ganttView || !ganttDataRange) return;
       const axis = el.querySelector('.gantt-axis');
       if (!axis) return;
-
       e.preventDefault();
 
       const rect = axis.getBoundingClientRect();
@@ -621,7 +667,6 @@
 
       const norm = Math.max(-3, Math.min(3, e.deltaY / 100));
       const factor = Math.exp(norm * 0.2);
-
       let newSpan = span * factor;
 
       const dataSpan = ganttDataRange.max - ganttDataRange.min;
@@ -629,13 +674,11 @@
       newSpan = Math.max(minSpan, newSpan);
 
       const newMin = cursorTime - xPct * newSpan;
-      const newMax = newMin + newSpan;
-
-      ganttView = clampGanttView(newMin, newMax);
-      drawGantt();
+      ganttView = clampGanttView(newMin, newMin + newSpan);
+      scheduleDraw();
     }, { passive: false });
 
-    /* ---------- ПАНОРАМИРОВАНИЕ ПРАВОЙ КНОПКОЙ МЫШИ ---------- */
+    /* ------ Мышь: панорамирование ПКМ ------ */
     let pan = null;
 
     el.addEventListener('mousedown', (e) => {
@@ -644,11 +687,7 @@
       if (!axis) return;
       e.preventDefault();
       const rect = axis.getBoundingClientRect();
-      pan = {
-        startX: e.clientX,
-        width: rect.width,
-        view: { ...ganttView },
-      };
+      pan = { startX: e.clientX, width: rect.width, view: { ...ganttView } };
       el.classList.add('panning');
       document.body.classList.add('is-panning');
     });
@@ -659,7 +698,7 @@
       const span = pan.view.max - pan.view.min;
       const dt = -(dx / pan.width) * span;
       ganttView = clampGanttView(pan.view.min + dt, pan.view.max + dt);
-      drawGantt();
+      scheduleDraw();
     });
 
     function endPan() {
@@ -668,10 +707,7 @@
       el.classList.remove('panning');
       document.body.classList.remove('is-panning');
     }
-
-    window.addEventListener('mouseup', (e) => {
-      if (e.button === 2) endPan();
-    });
+    window.addEventListener('mouseup', (e) => { if (e.button === 2) endPan(); });
     window.addEventListener('blur', endPan);
     window.addEventListener('mouseleave', endPan);
 
@@ -681,18 +717,15 @@
     el.addEventListener('dblclick', () => {
       if (!ganttDataRange) return;
       ganttView = { ...ganttDataRange };
-      drawGantt();
+      scheduleDraw();
     });
 
-    /* ---------- TOUCH: ПИНЧ-ЗУМ И ПАНОРАМИРОВАНИЕ ПАЛЬЦЕМ ---------- */
+    /* ------ Тач: пинч-зум + панорама + двойной тап ------ */
 
-    // Возвращает актуальный прямоугольник оси (позицию считаем в реальном времени)
     function getAxisRect() {
       const axis = el.querySelector('.gantt-axis');
       return axis ? axis.getBoundingClientRect() : null;
     }
-
-    // Ограничения диапазона
     function getSpanLimits() {
       const dataSpan = ganttDataRange.max - ganttDataRange.min;
       const minSpan = Math.min(DAY, dataSpan / 10);
@@ -700,14 +733,27 @@
     }
 
     let touch = null;
+    let lastTap = 0;
 
     el.addEventListener('touchstart', (e) => {
       if (!ganttView || !ganttDataRange) return;
       const rect = getAxisRect();
       if (!rect) return;
 
+      // Двойной тап → сброс
       if (e.touches.length === 1) {
-        // Один палец → панорамирование
+        const now = Date.now();
+        if (now - lastTap < 300) {
+          e.preventDefault();
+          ganttView = { ...ganttDataRange };
+          scheduleDraw();
+          lastTap = 0;
+          return;
+        }
+        lastTap = now;
+      }
+
+      if (e.touches.length === 1) {
         touch = {
           mode: 'pan',
           startX: e.touches[0].clientX,
@@ -715,7 +761,6 @@
           view: { ...ganttView },
         };
       } else if (e.touches.length >= 2) {
-        // Два пальца → пинч-зум
         const [t1, t2] = e.touches;
         const midX = (t1.clientX + t2.clientX) / 2;
         const dist = Math.abs(t1.clientX - t2.clientX) || 1;
@@ -729,25 +774,24 @@
           startSpan: span,
         };
       }
-    }, { passive: true });
+    }, { passive: false });
 
     el.addEventListener('touchmove', (e) => {
       if (!touch || !ganttView || !ganttDataRange) return;
       const rect = getAxisRect();
       if (!rect) return;
 
-      /* --- Панорамирование одним пальцем --- */
+      /* Панорама одним пальцем */
       if (touch.mode === 'pan') {
         if (e.touches.length === 1) {
-          e.preventDefault(); // блокируем прокрутку страницы
+          e.preventDefault();
           const dx = e.touches[0].clientX - touch.startX;
           const span = touch.view.max - touch.view.min;
           const dt = -(dx / touch.width) * span;
           ganttView = clampGanttView(touch.view.min + dt, touch.view.max + dt);
-          drawGantt();
+          scheduleDraw();
           return;
         }
-        // Перескок на два пальца — начинаем пинч
         if (e.touches.length >= 2) {
           e.preventDefault();
           const [t1, t2] = e.touches;
@@ -766,10 +810,9 @@
         }
       }
 
-      /* --- Пинч-зум --- */
+      /* Пинч */
       if (touch.mode === 'pinch') {
         if (e.touches.length < 2) {
-          // Потеряли один палец — превращаемся в панорамирование
           if (e.touches.length === 1) {
             touch = {
               mode: 'pan',
@@ -789,22 +832,17 @@
         const midX = (t1.clientX + t2.clientX) / 2;
         const dist = Math.abs(t1.clientX - t2.clientX) || 1;
 
-        // scale > 1 → расстояние между пальцами уменьшилось → zoom in (span уменьшается)
         const scale = touch.startDist / dist;
-
         const { minSpan, maxSpan } = getSpanLimits();
         let newSpan = touch.startSpan * scale;
         newSpan = Math.max(minSpan, Math.min(maxSpan, newSpan));
 
-        // Положение «якорной» точки времени относительно оси — по текущему центру касания
         let xPct = (midX - rect.left) / rect.width;
         xPct = Math.max(0, Math.min(1, xPct));
 
         const newMin = touch.anchorTime - xPct * newSpan;
-        const newMax = newMin + newSpan;
-
-        ganttView = clampGanttView(newMin, newMax);
-        drawGantt();
+        ganttView = clampGanttView(newMin, newMin + newSpan);
+        scheduleDraw();
       }
     }, { passive: false });
 
@@ -813,7 +851,6 @@
         touch = null;
         return;
       }
-      // Переход пинч → панорамирование, если остался один палец
       if (touch?.mode === 'pinch' && e.touches.length === 1) {
         const rect = getAxisRect();
         if (!rect) { touch = null; return; }
@@ -969,13 +1006,15 @@
   /* ============================================================
      Редактирование проекта
      ============================================================ */
-  els.editBtn.addEventListener('click', () => {
+  function openProjectDialog() {
+    if (!project) return;
     pName.value  = project.name || '';
     pDesc.value  = project.description || '';
     pStart.value = project.start_date || '';
     pEnd.value   = project.end_date || '';
     if (!els.projectDialog.open) els.projectDialog.showModal();
-  });
+  }
+
   els.cancelProject.addEventListener('click', () => els.projectDialog.close());
   els.projectDialog.addEventListener('click', (e) => {
     if (e.target === els.projectDialog) els.projectDialog.close();
@@ -1007,11 +1046,12 @@
   /* ============================================================
      Удаление проекта
      ============================================================ */
-  els.delBtn.addEventListener('click', async () => {
+  async function deleteProject() {
+    if (!project) return;
     if (!confirm(`Удалить проект «${project.name}» со всеми задачами?`)) return;
     await Store.deleteProject(projectId);
     location.href = 'index.html';
-  });
+  }
 
   /* ============================================================
      Старт

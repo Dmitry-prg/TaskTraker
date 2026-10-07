@@ -37,8 +37,9 @@
   --scroll-track: rgba(255, 255, 255, .04);
   --scroll-thumb: #7c5cff;
   --scroll-thumb-hover: #9d84ff;
-  --header-bg:   rgba(15, 20, 38, .72);
+  --header-bg:   rgba(15, 20, 38, .82);
   --header-shadow: 0 8px 32px -12px rgba(0, 0, 0, .6), 0 2px 8px -4px rgba(0, 0, 0, .4);
+  --popup-bg:    rgba(20, 26, 46, .96);
 }
 
 [data-theme="light"] {
@@ -58,8 +59,9 @@
   --scroll-track: rgba(15, 23, 42, .06);
   --scroll-thumb: #7c5cff;
   --scroll-thumb-hover: #6a48ee;
-  --header-bg:   rgba(255, 255, 255, .78);
+  --header-bg:   rgba(255, 255, 255, .88);
   --header-shadow: 0 8px 32px -14px rgba(15, 23, 42, .25), 0 2px 8px -4px rgba(15, 23, 42, .1);
+  --popup-bg:    rgba(255, 255, 255, .98);
   --shadow-card: 0 10px 30px -14px rgba(15,23,42,.18), 0 2px 6px -2px rgba(15,23,42,.06);
 }
 
@@ -73,10 +75,7 @@
   }
 }
 
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track {
   background: var(--scroll-track);
   border-radius: 999px;
@@ -97,11 +96,9 @@
   background: linear-gradient(135deg, #6b4aee 0%, #0ea5c4 100%);
   background-clip: padding-box;
 }
-*::-webkit-scrollbar-corner {
-  background: transparent;
-}
+*::-webkit-scrollbar-corner { background: transparent; }
 
-.gantt::-webkit-scrollbar { height: 10px; }
+.gantt::-webkit-scrollbar { height: 8px; }
 .gantt::-webkit-scrollbar-track {
   background: var(--scroll-track);
   border-radius: 999px;
@@ -130,19 +127,25 @@ dialog.modal::-webkit-scrollbar-thumb {
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { min-height: 100%; }
 
+html {
+  /* Отключаем double-tap zoom, ускоряем тапы. Пинч-зум внутри .gantt
+     отключён отдельно через touch-action: none на самом элементе. */
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
   background: var(--bg);
-  /* overflow-x: clip — не ломает sticky (в отличие от hidden) */
   overflow-x: clip;
   -webkit-font-smoothing: antialiased;
   transition: background .4s ease, color .4s ease;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
-/* Глобальное состояние панорамирования */
 body.is-panning,
 body.is-panning * {
   cursor: grabbing !important;
@@ -213,7 +216,6 @@ body.is-panning * {
   animation: fadeInUp .6s var(--ease-out) both;
 }
 
-/* --- Sticky-шапка страницы проекта --- */
 .top.sticky-top {
   position: sticky;
   top: 12px;
@@ -227,7 +229,6 @@ body.is-panning * {
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   box-shadow: var(--header-shadow);
-  /* только opacity-анимация, чтобы не мешать sticky */
   animation: headerFade .4s var(--ease-out) both;
 }
 @keyframes headerFade {
@@ -277,9 +278,9 @@ body.is-panning * {
   gap: 8px;
   flex: 0 1 auto;
   min-width: 0;
+  position: relative;
 }
 
-/* Прогресс внутри шапки */
 .top.sticky-top .project-progress {
   flex: 0 1 220px;
   min-width: 100px;
@@ -288,15 +289,12 @@ body.is-panning * {
   margin: 0;
   gap: 8px;
 }
-.top.sticky-top .project-progress .progress-bar {
-  height: 6px;
-}
+.top.sticky-top .project-progress .progress-bar { height: 6px; }
 .top.sticky-top .project-progress .progress-text {
   font-size: 11.5px;
   white-space: nowrap;
 }
 
-/* Компактная кнопка "Задача" */
 .btn-compact {
   padding: 0 14px;
   height: 42px;
@@ -336,6 +334,64 @@ body.is-panning * {
 
 [data-theme="dark"]  .i-moon { display: none; }
 [data-theme="light"] .i-sun  { display: none; }
+
+/* ============================================================
+   Выпадающее меню инструментов (мобильные)
+   ============================================================ */
+.only-mobile { display: none; }
+
+.mobile-menu { position: relative; }
+
+.mobile-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 210px;
+  padding: 6px;
+  background: var(--popup-bg);
+  border: 1px solid var(--border-2);
+  border-radius: 14px;
+  box-shadow: 0 20px 50px -20px rgba(0,0,0,.7), 0 4px 12px -4px rgba(0,0,0,.4);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  z-index: 200;
+  animation: menuIn .18s var(--ease-out);
+}
+.mobile-menu-dropdown[hidden] { display: none; }
+.mobile-menu-dropdown.closing {
+  animation: menuOut .15s var(--ease-in) forwards;
+  pointer-events: none;
+}
+@keyframes menuIn {
+  from { opacity: 0; transform: translateY(-6px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes menuOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(-6px) scale(.97); }
+}
+
+.menu-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background .15s, color .15s;
+}
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--card-hover);
+}
+.menu-item svg { flex: 0 0 auto; opacity: .85; }
+.menu-item.danger { color: var(--danger); }
+.menu-item.danger:hover { background: rgba(255,92,124,.12); }
 
 /* ============================================================
    Стеклянные панели
@@ -582,9 +638,6 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
   margin-bottom: 26px;
   animation: fadeInUp .6s .1s var(--ease-out) both;
 }
-@media (max-width: 820px) {
-  .kanban { grid-template-columns: 1fr; }
-}
 
 .kanban-col {
   background: var(--card);
@@ -593,25 +646,44 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
   padding: 12px;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  display: flex; flex-direction: column;
   min-height: 180px;
   transition: background .25s, border-color .25s, box-shadow .25s;
+  /* сбрасываем системные маркеры details */
 }
-.kanban-col.drop-target {
-  background: rgba(124,92,255,.08);
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(124,92,255,.15), 0 12px 30px -12px var(--accent);
-}
-
-.kanban-col > header {
+.kanban-col > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
   display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 12px; padding: 0 4px;
+  gap: 8px;
+  padding: 4px 4px;
+  margin: 0;
+  outline: none;
 }
-.kanban-col h3 {
+.kanban-col > summary::-webkit-details-marker { display: none; }
+.kanban-col > summary::marker { content: ''; }
+
+.kanban-col-head h3 {
   margin: 0; font-size: 12px; font-weight: 600;
   text-transform: uppercase; letter-spacing: .08em;
   color: var(--muted);
+  display: inline-flex; align-items: center; gap: 8px;
 }
+.kanban-col-head h3::after {
+  content: '';
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform .25s var(--ease-out);
+  opacity: .7;
+}
+.kanban-col[open] > .kanban-col-head h3::after {
+  transform: rotate(-135deg) translateY(-1px);
+}
+
 .kanban-col .count {
   font-size: 12px; font-weight: 600;
   color: var(--muted);
@@ -619,16 +691,60 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
   padding: 2px 9px; border-radius: 999px;
   font-variant-numeric: tabular-nums;
 }
-.kanban-col[data-status="in_progress"] h3 { color: var(--warning); }
-.kanban-col[data-status="done"] h3 { color: var(--success); }
+.kanban-col[data-status="in_progress"] .kanban-col-head h3 { color: var(--warning); }
+.kanban-col[data-status="done"] .kanban-col-head h3 { color: var(--success); }
 
 .kanban-list {
   display: flex; flex-direction: column; gap: 8px;
-  flex: 1; min-height: 60px;
+  margin-top: 12px;
   border-radius: 12px;
   transition: background .2s;
+  min-height: 40px;
 }
 
+.kanban-col.drop-target {
+  background: rgba(124,92,255,.08);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124,92,255,.15), 0 12px 30px -12px var(--accent);
+}
+
+/* --- Планшет / телефон: аккордеон --- */
+@media (max-width: 820px) {
+  .kanban { grid-template-columns: 1fr; gap: 10px; }
+
+  .kanban-col {
+    padding: 10px 12px;
+    min-height: 0;
+  }
+  .kanban-col > .kanban-col-head {
+    padding: 6px 2px;
+  }
+  .kanban-col:not([open]) {
+    padding-bottom: 10px;
+  }
+
+  /* Плавное раскрытие */
+  .kanban-col[open] > .kanban-list {
+    animation: collapseIn .25s var(--ease-out);
+  }
+  @keyframes collapseIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/* На десктопе детали всегда раскрыты, summary не кликается */
+@media (min-width: 821px) {
+  .kanban-col > summary { pointer-events: none; cursor: default; }
+  .kanban-col:not([open]) > .kanban-list {
+    display: flex !important; /* перебиваем скрытие <details> */
+  }
+  .kanban-col-head h3::after { display: none; }
+}
+
+/* ============================================================
+   Карточки задач
+   ============================================================ */
 .kanban-card {
   position: relative;
   background: var(--input-bg);
@@ -714,26 +830,13 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
 .gantt-section {
   padding: 20px 22px 24px;
   animation: fadeInUp .6s .15s var(--ease-out) both;
+  /* На мобильных раздуваем до «панели во всю ширину» */
 }
-.section-head { margin-bottom: 16px; }
+.section-head { margin-bottom: 14px; }
 .section-head h2 {
   margin: 0 0 2px;
   font-size: 16px; font-weight: 650;
   letter-spacing: -0.01em;
-}
-.section-hint { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.55; }
-.section-hint kbd {
-  display: inline-block;
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 5px;
-  background: var(--divider);
-  border: 1px solid var(--border-2);
-  color: var(--text);
-  box-shadow: 0 1px 0 var(--border-2);
-  margin: 0 1px;
 }
 
 .gantt-legend {
@@ -798,10 +901,14 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
   flex-direction: column;
   gap: 6px;
   overflow-x: auto;
-  padding: 24px 0 12px;
+  padding: 20px 0 10px;
   cursor: default;
   user-select: none;
   -webkit-user-select: none;
+  /* Запрет нативных жестов — управляем сами через JS */
+  touch-action: none;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .gantt.panning { cursor: grabbing; }
 .gantt.panning * { cursor: grabbing !important; }
@@ -811,11 +918,8 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
   grid-template-columns: minmax(140px, 220px) 1fr;
   gap: 12px;
   align-items: center;
-  min-width: 480px;
+  min-width: 520px;
   position: relative;
-}
-@media (max-width: 520px) {
-  .gantt-row { grid-template-columns: 120px 1fr; }
 }
 
 .gantt-head { height: 32px; margin-bottom: 6px; }
@@ -1009,7 +1113,6 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
   background: linear-gradient(135deg, #16a34a, #22c55e);
 }
 
-/* Задача вне рамок проекта: контур красный, заливка — по статусу */
 .gantt-bar.out-of-bounds {
   border-color: var(--danger);
   box-shadow: 0 0 14px -3px var(--danger);
@@ -1355,9 +1458,12 @@ dialog.modal[open] { animation: dialogFade .25s ease; }
 .subtask-add button:active { transform: rotate(90deg) scale(.92); }
 
 /* ============================================================
-   Адаптив: sticky-шапка проекта
+   Адаптив: шапка, легенда, график
    ============================================================ */
 @media (max-width: 720px) {
+  .only-desktop { display: none !important; }
+  .only-mobile  { display: block; }
+
   .top.sticky-top {
     padding: 8px 10px;
     gap: 8px;
@@ -1366,14 +1472,12 @@ dialog.modal[open] { animation: dialogFade .25s ease; }
   .top.sticky-top .brand { gap: 10px; }
   .top.sticky-top .back-btn { width: 36px; height: 36px; }
   .top.sticky-top .icon-btn { width: 38px; height: 38px; }
-  .btn-compact {
+  .top.sticky-top .btn-compact {
     height: 38px;
     min-height: 38px;
     padding: 0 10px;
-    gap: 0;
   }
-  .btn-compact .btn-label { display: none; }
-  /* На мобильном оставляем только текст прогресса без полосы */
+  .top.sticky-top .btn-compact .btn-label { display: none; }
   .top.sticky-top .project-progress {
     flex: 0 0 auto;
     min-width: 0;
@@ -1381,12 +1485,47 @@ dialog.modal[open] { animation: dialogFade .25s ease; }
   .top.sticky-top .project-progress .progress-bar { display: none; }
   .top.sticky-top .project-progress .progress { gap: 0; }
   .top.sticky-top .project-progress .progress-text { font-size: 11px; }
+
+  /* --- График: больше места, компактнее легенда --- */
+  .container { padding: 20px 12px 40px; }
+  .gantt-section {
+    padding: 14px 12px 16px;
+    border-radius: 18px;
+  }
+  .section-head { margin-bottom: 10px; }
+  .section-head h2 { font-size: 15px; }
+
+  .gantt-legend {
+    gap: 8px 12px;
+    margin-top: 8px;
+    font-size: 10.5px;
+  }
+  .gantt-legend > span { gap: 4px; }
+  .gantt-legend .swatch { width: 12px; }
+  .gantt-legend .swatch-today-col,
+  .gantt-legend .swatch-mask,
+  .gantt-legend .swatch-oob {
+    width: 12px;
+    height: 9px;
+  }
+
+  .gantt {
+    padding: 12px 0 6px;
+  }
+  .gantt-row {
+    grid-template-columns: minmax(110px, 140px) 1fr;
+    gap: 8px;
+    min-width: 620px;  /* строки шире → больше места на дни */
+  }
+  .gantt-track { height: 26px; }
+  .gantt-label { font-size: 12px; }
+  .gantt-pct { font-size: 10px; padding: 1px 6px; }
+  .gantt-tick { font-size: 10px; }
 }
 
 @media (max-width: 520px) {
   .top.sticky-top .brand-text h1 { font-size: 17px; }
   .top.sticky-top .subtitle { font-size: 11px; }
-  .top.sticky-top .project-progress { display: none; }
 }
 
 /* ============================================================
