@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#080b16" />
   <title>Проект — Task Tracker</title>
+
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" href="icon.png" />
+  <link rel="apple-touch-icon" href="icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Task Tracker" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -18,7 +26,6 @@
   </div>
 
   <div class="container">
-    <!-- Sticky-шапка проекта -->
     <header class="top sticky-top">
       <div class="brand">
         <a href="index.html" class="icon-btn back-btn" aria-label="Назад" title="К списку проектов">
@@ -113,7 +120,6 @@
       </div>
     </header>
 
-    <!-- Задачи -->
     <details class="kanban-wrap glass" open>
       <summary class="kanban-summary">
         <span class="kanban-summary-left">
@@ -202,7 +208,6 @@
               </button>
             </div>
 
-            <!-- Кнопка «На весь экран» -->
             <button id="ganttFullscreenBtn" class="gantt-nav-btn gantt-fullscreen-btn" type="button"
                     aria-label="На весь экран" title="На весь экран">
               <svg class="icon-enter" viewBox="0 0 24 24" width="16" height="16" fill="none"

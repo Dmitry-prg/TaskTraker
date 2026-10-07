@@ -282,4 +282,13 @@
     humanRange, daysLeftLabel,
     STATUS, STATUS_CYCLE, nextStatus, DAY,
   };
+
+  /* ---------- Service Worker (PWA) ---------- */
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker
+        .register('./sw.js')
+        .catch((err) => console.warn('[PWA] SW registration failed:', err));
+    });
+  }
 })();
