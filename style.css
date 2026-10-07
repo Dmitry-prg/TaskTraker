@@ -98,14 +98,30 @@
 }
 *::-webkit-scrollbar-corner { background: transparent; }
 
-.gantt::-webkit-scrollbar { height: 8px; }
+/* --- Горизонтальная полоса графика Gantt --- */
+.gantt::-webkit-scrollbar {
+  height: 16px;
+}
 .gantt::-webkit-scrollbar-track {
   background: var(--scroll-track);
   border-radius: 999px;
-  margin: 0 12px;
+  margin: 0 8px;
 }
 .gantt::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  border-radius: 999px;
+  /* Тонкая «обводка» из прозрачного фона — визуально ужимает ползунок,
+     оставляя область клика/захвата максимально широкой. */
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  min-height: 0;
+}
+.gantt::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, var(--scroll-thumb-hover) 0%, #4edfff 100%);
+  background-clip: padding-box;
+}
+.gantt::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(135deg, #6b4aee 0%, #0ea5c4 100%);
   background-clip: padding-box;
 }
 
@@ -128,8 +144,6 @@ dialog.modal::-webkit-scrollbar-thumb {
 html, body { min-height: 100%; }
 
 html {
-  /* Отключаем double-tap zoom, ускоряем тапы. Пинч-зум внутри .gantt
-     отключён отдельно через touch-action: none на самом элементе. */
   touch-action: manipulation;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -648,7 +662,6 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
   -webkit-backdrop-filter: blur(14px);
   min-height: 180px;
   transition: background .25s, border-color .25s, box-shadow .25s;
-  /* сбрасываем системные маркеры details */
 }
 .kanban-col > summary {
   list-style: none;
@@ -708,22 +721,11 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
   box-shadow: 0 0 0 3px rgba(124,92,255,.15), 0 12px 30px -12px var(--accent);
 }
 
-/* --- Планшет / телефон: аккордеон --- */
 @media (max-width: 820px) {
   .kanban { grid-template-columns: 1fr; gap: 10px; }
-
-  .kanban-col {
-    padding: 10px 12px;
-    min-height: 0;
-  }
-  .kanban-col > .kanban-col-head {
-    padding: 6px 2px;
-  }
-  .kanban-col:not([open]) {
-    padding-bottom: 10px;
-  }
-
-  /* Плавное раскрытие */
+  .kanban-col { padding: 10px 12px; min-height: 0; }
+  .kanban-col > .kanban-col-head { padding: 6px 2px; }
+  .kanban-col:not([open]) { padding-bottom: 10px; }
   .kanban-col[open] > .kanban-list {
     animation: collapseIn .25s var(--ease-out);
   }
@@ -733,11 +735,10 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
   }
 }
 
-/* На десктопе детали всегда раскрыты, summary не кликается */
 @media (min-width: 821px) {
   .kanban-col > summary { pointer-events: none; cursor: default; }
   .kanban-col:not([open]) > .kanban-list {
-    display: flex !important; /* перебиваем скрытие <details> */
+    display: flex !important;
   }
   .kanban-col-head h3::after { display: none; }
 }
@@ -830,14 +831,61 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
 .gantt-section {
   padding: 20px 22px 24px;
   animation: fadeInUp .6s .15s var(--ease-out) both;
-  /* На мобильных раздуваем до «панели во всю ширину» */
 }
 .section-head { margin-bottom: 14px; }
-.section-head h2 {
-  margin: 0 0 2px;
+
+.section-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.section-head-row h2 {
+  margin: 0;
   font-size: 16px; font-weight: 650;
   letter-spacing: -0.01em;
+  flex: 1 1 auto;
+  min-width: 0;
 }
+
+.gantt-nav {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.gantt-nav-btn {
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+  transition: transform .15s var(--ease-out),
+              background .2s, border-color .2s, color .2s, opacity .2s;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  -webkit-tap-highlight-color: transparent;
+}
+.gantt-nav-btn:hover:not(:disabled) {
+  background: var(--card-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+.gantt-nav-btn:active:not(:disabled) {
+  transform: scale(.94);
+}
+.gantt-nav-btn:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+  color: var(--muted-2);
+  border-color: var(--border);
+  background: var(--card);
+}
+.gantt-nav-btn svg { pointer-events: none; }
 
 .gantt-legend {
   display: flex; flex-wrap: wrap; gap: 14px;
@@ -901,14 +949,15 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
   flex-direction: column;
   gap: 6px;
   overflow-x: auto;
-  padding: 20px 0 10px;
+  padding: 20px 0 14px;
   cursor: default;
   user-select: none;
   -webkit-user-select: none;
-  /* Запрет нативных жестов — управляем сами через JS */
   touch-action: none;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  /* Отступ снизу под широкую полосу прокрутки, чтобы она не наезжала на бары */
+  scrollbar-gutter: stable;
 }
 .gantt.panning { cursor: grabbing; }
 .gantt.panning * { cursor: grabbing !important; }
@@ -1486,14 +1535,18 @@ dialog.modal[open] { animation: dialogFade .25s ease; }
   .top.sticky-top .project-progress .progress { gap: 0; }
   .top.sticky-top .project-progress .progress-text { font-size: 11px; }
 
-  /* --- График: больше места, компактнее легенда --- */
   .container { padding: 20px 12px 40px; }
   .gantt-section {
     padding: 14px 12px 16px;
     border-radius: 18px;
   }
   .section-head { margin-bottom: 10px; }
-  .section-head h2 { font-size: 15px; }
+  .section-head-row h2 { font-size: 15px; }
+
+  .gantt-nav-btn {
+    width: 32px; height: 32px;
+    border-radius: 9px;
+  }
 
   .gantt-legend {
     gap: 8px 12px;
@@ -1510,17 +1563,41 @@ dialog.modal[open] { animation: dialogFade .25s ease; }
   }
 
   .gantt {
-    padding: 12px 0 6px;
+    padding: 12px 0 18px;
   }
   .gantt-row {
     grid-template-columns: minmax(110px, 140px) 1fr;
     gap: 8px;
-    min-width: 620px;  /* строки шире → больше места на дни */
+    min-width: 620px;
   }
   .gantt-track { height: 26px; }
   .gantt-label { font-size: 12px; }
   .gantt-pct { font-size: 10px; padding: 1px 6px; }
   .gantt-tick { font-size: 10px; }
+
+  /* ШИРОКАЯ полоса прокрутки графика под палец */
+  .gantt::-webkit-scrollbar {
+    height: 22px;
+  }
+  .gantt::-webkit-scrollbar-track {
+    background: var(--scroll-track);
+    border-radius: 999px;
+    margin: 0 6px;
+  }
+  .gantt::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+    border-radius: 999px;
+    /* Толстая «обводка» из прозрачного фона → ползунок визуально тоньше,
+       но область захвата остаётся во всю высоту скроллбара */
+    border: 6px solid transparent;
+    background-clip: padding-box;
+    box-shadow: 0 0 8px -1px var(--accent);
+  }
+  .gantt::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(135deg, #6b4aee 0%, #0ea5c4 100%);
+    background-clip: padding-box;
+    box-shadow: 0 0 12px 0 var(--accent);
+  }
 }
 
 @media (max-width: 520px) {

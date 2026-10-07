@@ -38,6 +38,9 @@
 
     mobileMenuBtn: document.getElementById('mobileMenuBtn'),
     mobileMenu:    document.getElementById('mobileMenu'),
+
+    ganttPrevBtn:  document.getElementById('ganttPrevBtn'),
+    ganttNextBtn:  document.getElementById('ganttNextBtn'),
   };
 
   const tTitle  = document.getElementById('tTitle');
@@ -50,7 +53,6 @@
   const pStart = document.getElementById('pStart');
   const pEnd   = document.getElementById('pEnd');
 
-  /* Тема — обе кнопки */
   document.querySelectorAll('[data-action="toggle-theme"]').forEach(btn => setupThemeButton(btn));
 
   let project = null;
@@ -61,6 +63,7 @@
 
   let ganttDataRange = null;
   let ganttView = null;
+  let ganttStepDays = 1;   // текущий шаг шкалы (в днях)
 
   function uid() {
     try {
@@ -111,15 +114,12 @@
     else closeMobileMenu();
   });
 
-  // Клик по пункту меню — выполняем и закрываем
   els.mobileMenu?.addEventListener('click', (e) => {
     const item = e.target.closest('.menu-item');
     if (!item) return;
-    // обработчик действия вызовется через делегирование ниже
     setTimeout(() => closeMobileMenu(), 0);
   });
 
-  // Клик вне меню — закрываем
   document.addEventListener('click', (e) => {
     if (!els.mobileMenu || els.mobileMenu.hidden) return;
     if (els.mobileMenu.contains(e.target)) return;
@@ -127,7 +127,6 @@
     closeMobileMenu();
   });
 
-  // Escape — закрыть
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeMobileMenu();
   });
@@ -390,13 +389,14 @@
           <span class="empty-icon">📊</span>
           <p>Задайте сроки проекта или задач — появится график</p>
         </div>`;
+      updateGanttNavButtons();
       return;
     }
     ganttView = { ...ganttDataRange };
     drawGantt();
   }
 
-  /* --- Планировщик отрисовки через rAF: предотвращает дёргание --- */
+  /* --- Планировщик отрисовки через rAF --- */
   let rafPending = false;
   function scheduleDraw() {
     if (rafPending) return;
@@ -429,6 +429,9 @@
     else if (totalDays <= 90) stepDays = 7;
     else if (totalDays <= 365) stepDays = 30;
     else stepDays = 90;
+
+    /* Запоминаем шаг шкалы — используется стрелками навигации */
+    ganttStepDays = stepDays;
 
     const ticks = [];
     const startDay = Math.floor(minT / DAY) * DAY;
@@ -536,6 +539,7 @@
       empty.className = 'empty small';
       empty.innerHTML = `<p class="hint">Пока нет задач</p>`;
       container.appendChild(empty);
+      updateGanttNavButtons();
       return;
     }
 
@@ -628,7 +632,46 @@
       row.append(labelWrap, track);
       container.appendChild(row);
     }
+
+    updateGanttNavButtons();
   }
+
+  /* ============================================================
+     Стрелки навигации по шкале
+     ============================================================ */
+  function updateGanttNavButtons() {
+    const prev = els.ganttPrevBtn;
+    const next = els.ganttNextBtn;
+    if (!prev || !next) return;
+
+    if (!ganttView || !ganttDataRange) {
+      prev.disabled = true;
+      next.disabled = true;
+      return;
+    }
+    const EPS = 1000; // 1 секунда — «достаточно близко к границе»
+    prev.disabled = ganttView.min <= ganttDataRange.min + EPS;
+    next.disabled = ganttView.max >= ganttDataRange.max - EPS;
+  }
+
+  /* Сдвиг на 1 шаг шкалы (в днях), dir = -1 → влево, +1 → вправо */
+  function ganttPanByStep(dir) {
+    if (!ganttView || !ganttDataRange) return;
+    const dt = dir * ganttStepDays * DAY;
+    const newMin = ganttView.min + dt;
+    const newMax = ganttView.max + dt;
+    const clamped = clampGanttView(newMin, newMax);
+    // если clamp не дал изменить вид — значит упёрлись в границу
+    if (clamped.min === ganttView.min && clamped.max === ganttView.max) {
+      updateGanttNavButtons();
+      return;
+    }
+    ganttView = clamped;
+    scheduleDraw();
+  }
+
+  els.ganttPrevBtn?.addEventListener('click', () => ganttPanByStep(-1));
+  els.ganttNextBtn?.addEventListener('click', () => ganttPanByStep(1));
 
   /* ============================================================
      Взаимодействия с Gantt
@@ -740,7 +783,6 @@
       const rect = getAxisRect();
       if (!rect) return;
 
-      // Двойной тап → сброс
       if (e.touches.length === 1) {
         const now = Date.now();
         if (now - lastTap < 300) {
@@ -781,7 +823,6 @@
       const rect = getAxisRect();
       if (!rect) return;
 
-      /* Панорама одним пальцем */
       if (touch.mode === 'pan') {
         if (e.touches.length === 1) {
           e.preventDefault();
@@ -810,7 +851,6 @@
         }
       }
 
-      /* Пинч */
       if (touch.mode === 'pinch') {
         if (e.touches.length < 2) {
           if (e.touches.length === 1) {
