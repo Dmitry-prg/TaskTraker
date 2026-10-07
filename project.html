@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#080b16" />
+  <title>Проект — Task Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-orbs" aria-hidden="true">
+    <span class="orb orb-1"></span>
+    <span class="orb orb-2"></span>
+    <span class="orb orb-3"></span>
+  </div>
+
+  <div class="container">
+    <!-- ============================================================
+         Sticky-шапка проекта: название + прогресс + инструменты
+         ============================================================ -->
+    <header class="top sticky-top">
+      <div class="brand">
+        <a href="index.html" class="icon-btn back-btn" aria-label="Назад" title="К списку проектов">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+               stroke="currentColor" stroke-width="2.2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+        </a>
+        <div class="brand-text">
+          <h1 id="projectName">…</h1>
+          <p class="subtitle" id="projectMeta">Загрузка…</p>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <div id="projectProgress" class="project-progress"></div>
+
+        <button id="addTaskBtn" class="btn-primary btn-compact" type="button">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+               stroke="currentColor" stroke-width="3" stroke-linecap="round">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          <span class="btn-label">Задача</span>
+        </button>
+
+        <button id="editProjectBtn" class="icon-btn" aria-label="Редактировать" title="Редактировать проект" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
+          </svg>
+        </button>
+
+        <button id="deleteProjectBtn" class="icon-btn danger" aria-label="Удалить" title="Удалить проект" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/>
+          </svg>
+        </button>
+
+        <button id="themeBtn" class="icon-btn" aria-label="Сменить тему" title="Сменить тему" type="button">
+          <svg class="i-sun" viewBox="0 0 24 24" width="18" height="18" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+          </svg>
+          <svg class="i-moon" viewBox="0 0 24 24" width="18" height="18" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <section class="kanban" id="kanban">
+      <div class="kanban-col" data-status="todo">
+        <header>
+          <h3>К выполнению</h3>
+          <span class="count">0</span>
+        </header>
+        <div class="kanban-list" data-status="todo"></div>
+      </div>
+      <div class="kanban-col" data-status="in_progress">
+        <header>
+          <h3>В работе</h3>
+          <span class="count">0</span>
+        </header>
+        <div class="kanban-list" data-status="in_progress"></div>
+      </div>
+      <div class="kanban-col" data-status="done">
+        <header>
+          <h3>Готово</h3>
+          <span class="count">0</span>
+        </header>
+        <div class="kanban-list" data-status="done"></div>
+      </div>
+    </section>
+
+    <section class="gantt-section glass">
+      <header class="section-head">
+        <h2>График проекта</h2>
+        <p class="section-hint">
+          Заполнение полосы отражает процент выполнения подзадач. Задачи без подзадач:
+          <strong>0%</strong> — к выполнению, <strong>50%</strong> — в работе, <strong>100%</strong> — готово.
+          <br>
+          Колёсико — зум, <kbd>ПКМ</kbd> — панорамирование, двойной клик — сброс масштаба.
+        </p>
+        <div class="gantt-legend">
+          <span><i class="swatch swatch-start"></i> старт проекта</span>
+          <span><i class="swatch swatch-end"></i> срок проекта</span>
+          <span><i class="swatch swatch-today"></i> сегодня</span>
+          <span><i class="swatch swatch-today-col"></i> текущий день</span>
+          <span><i class="swatch swatch-mask"></i> вне рамок проекта</span>
+          <span><i class="swatch swatch-oob"></i> задача вне проекта</span>
+        </div>
+      </header>
+      <div id="gantt" class="gantt"></div>
+    </section>
+  </div>
+
+  <dialog id="taskDialog" class="modal">
+    <form id="taskForm" class="modal-inner" autocomplete="off">
+      <h3 id="taskDialogTitle">Новая задача</h3>
+
+      <label>
+        <span>Название</span>
+        <input id="tTitle" name="title" required autocomplete="off" placeholder="Что нужно сделать?" />
+      </label>
+
+      <div class="modal-row">
+        <label>
+          <span>Начало</span>
+          <input id="tStart" name="start_date" type="date" />
+        </label>
+        <label>
+          <span>Окончание</span>
+          <input id="tEnd" name="end_date" type="date" />
+        </label>
+      </div>
+
+      <label>
+        <span>Статус</span>
+        <select id="tStatus" name="status">
+          <option value="todo">К выполнению</option>
+          <option value="in_progress">В работе</option>
+          <option value="done">Готово</option>
+        </select>
+      </label>
+
+      <div class="subtasks-block">
+        <div class="subtasks-head">
+          <span>Подзадачи</span>
+          <span id="subtasksCounter" class="subtasks-counter">0/0</span>
+        </div>
+        <div id="subtasksList" class="subtasks-list"></div>
+        <div class="subtask-add">
+          <input id="subtaskInput" type="text" placeholder="Добавить подзадачу и нажать Enter" autocomplete="off" />
+          <button type="button" id="subtaskAddBtn" aria-label="Добавить подзадачу">+</button>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="ghost" id="cancelTask">Отмена</button>
+        <button type="submit" class="btn-primary">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="projectDialog" class="modal">
+    <form id="projectForm" class="modal-inner" autocomplete="off">
+      <h3>Редактировать проект</h3>
+      <label>
+        <span>Название</span>
+        <input id="pName" name="name" required autocomplete="off" />
+      </label>
+      <label>
+        <span>Описание (необязательно)</span>
+        <textarea id="pDesc" name="description" rows="2"></textarea>
+      </label>
+      <div class="modal-row">
+        <label>
+          <span>Дата начала</span>
+          <input id="pStart" name="start_date" type="date" />
+        </label>
+        <label>
+          <span>Срок реализации</span>
+          <input id="pEnd" name="end_date" type="date" />
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="ghost" id="cancelProject">Отмена</button>
+        <button type="submit" class="btn-primary">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+  <script src="project.js"></script>
+</body>
+</html>
