@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#080b16" />
   <title>Проект — Task Tracker</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -18,9 +18,7 @@
   </div>
 
   <div class="container">
-    <!-- ============================================================
-         Sticky-шапка проекта
-         ============================================================ -->
+    <!-- Sticky-шапка проекта -->
     <header class="top sticky-top">
       <div class="brand">
         <a href="index.html" class="icon-btn back-btn" aria-label="Назад" title="К списку проектов">
@@ -116,55 +114,95 @@
     </header>
 
     <!-- ============================================================
-         Канбан: на мобильных — сворачивающиеся блоки
+         Задачи: один общий сворачиваемый блок
          ============================================================ -->
-    <section class="kanban" id="kanban">
-      <details class="kanban-col" data-status="todo" open>
-        <summary class="kanban-col-head">
-          <h3>К выполнению</h3>
-          <span class="count">0</span>
-        </summary>
-        <div class="kanban-list" data-status="todo"></div>
-      </details>
+    <details class="kanban-wrap glass" open>
+      <summary class="kanban-summary">
+        <span class="kanban-summary-left">
+          <h2>Задачи</h2>
+          <span class="kanban-summary-count" id="kanbanTotal">0</span>
+        </span>
+        <span class="kanban-chevron" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+               stroke="currentColor" stroke-width="2.4"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </span>
+      </summary>
 
-      <details class="kanban-col" data-status="in_progress" open>
-        <summary class="kanban-col-head">
-          <h3>В работе</h3>
-          <span class="count">0</span>
-        </summary>
-        <div class="kanban-list" data-status="in_progress"></div>
-      </details>
+      <section class="kanban" id="kanban">
+        <div class="kanban-col" data-status="todo">
+          <header>
+            <h3>К выполнению</h3>
+            <span class="count">0</span>
+          </header>
+          <div class="kanban-list" data-status="todo"></div>
+        </div>
 
-      <details class="kanban-col" data-status="done" open>
-        <summary class="kanban-col-head">
-          <h3>Готово</h3>
-          <span class="count">0</span>
-        </summary>
-        <div class="kanban-list" data-status="done"></div>
-      </details>
-    </section>
+        <div class="kanban-col" data-status="in_progress">
+          <header>
+            <h3>В работе</h3>
+            <span class="count">0</span>
+          </header>
+          <div class="kanban-list" data-status="in_progress"></div>
+        </div>
+
+        <div class="kanban-col" data-status="done">
+          <header>
+            <h3>Готово</h3>
+            <span class="count">0</span>
+          </header>
+          <div class="kanban-list" data-status="done"></div>
+        </div>
+      </section>
+    </details>
 
     <section class="gantt-section glass">
       <header class="section-head">
         <div class="section-head-row">
           <h2>График проекта</h2>
-          <div class="gantt-nav" role="group" aria-label="Сдвиг по шкале графика">
-            <button id="ganttPrevBtn" class="gantt-nav-btn" type="button"
-                    aria-label="Сдвинуть влево" title="Сдвинуть влево">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
-                   stroke="currentColor" stroke-width="2.6"
-                   stroke-linecap="round" stroke-linejoin="round">
-                <path d="M15 18 9 12l6-6"/>
-              </svg>
-            </button>
-            <button id="ganttNextBtn" class="gantt-nav-btn" type="button"
-                    aria-label="Сдвинуть вправо" title="Сдвинуть вправо">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
-                   stroke="currentColor" stroke-width="2.6"
-                   stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 18l6-6-6-6"/>
-              </svg>
-            </button>
+          <div class="gantt-controls">
+            <div class="gantt-nav" role="group" aria-label="Сдвиг по шкале">
+              <button id="ganttPrevBtn" class="gantt-nav-btn" type="button"
+                      aria-label="Сдвинуть влево" title="Сдвинуть влево">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                     stroke="currentColor" stroke-width="2.6"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M15 18 9 12l6-6"/>
+                </svg>
+              </button>
+              <button id="ganttNextBtn" class="gantt-nav-btn" type="button"
+                      aria-label="Сдвинуть вправо" title="Сдвинуть вправо">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                     stroke="currentColor" stroke-width="2.6"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </button>
+            </div>
+            <div class="gantt-zoom" role="group" aria-label="Масштаб">
+              <button id="ganttZoomOutBtn" class="gantt-nav-btn" type="button"
+                      aria-label="Уменьшить масштаб" title="Уменьшить масштаб">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                     stroke="currentColor" stroke-width="2.2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="7"/>
+                  <path d="M20 20l-3.6-3.6"/>
+                  <path d="M8 11h6"/>
+                </svg>
+              </button>
+              <button id="ganttZoomInBtn" class="gantt-nav-btn" type="button"
+                      aria-label="Увеличить масштаб" title="Увеличить масштаб">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                     stroke="currentColor" stroke-width="2.2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="7"/>
+                  <path d="M20 20l-3.6-3.6"/>
+                  <path d="M8 11h6M11 8v6"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
         <div class="gantt-legend">

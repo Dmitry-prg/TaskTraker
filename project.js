@@ -39,8 +39,12 @@
     mobileMenuBtn: document.getElementById('mobileMenuBtn'),
     mobileMenu:    document.getElementById('mobileMenu'),
 
+    kanbanTotal:   document.getElementById('kanbanTotal'),
+
     ganttPrevBtn:  document.getElementById('ganttPrevBtn'),
     ganttNextBtn:  document.getElementById('ganttNextBtn'),
+    ganttZoomInBtn:  document.getElementById('ganttZoomInBtn'),
+    ganttZoomOutBtn: document.getElementById('ganttZoomOutBtn'),
   };
 
   const tTitle  = document.getElementById('tTitle');
@@ -63,7 +67,7 @@
 
   let ganttDataRange = null;
   let ganttView = null;
-  let ganttStepDays = 1;   // текущий шаг шкалы (в днях)
+  let ganttStepDays = 1;
 
   function uid() {
     try {
@@ -82,6 +86,38 @@
     if (task.status === 'done') return 100;
     if (task.status === 'in_progress') return 50;
     return 0;
+  }
+
+  /* ============================================================
+     Компактная мета для шапки:
+     • диапазон дат в формате «12.10 — 20.10»
+     • просрочен / сегодня — короткие бейджи
+     ============================================================ */
+  function shortRange(start, end) {
+    const fmt = (s) => {
+      const d = toDate(s);
+      return d ? d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) : '';
+    };
+    if (!start && !end) return '';
+    if (start && !end) return 'с ' + fmt(start);
+    if (!start && end) return 'до ' + fmt(end);
+    return `${fmt(start)} — ${fmt(end)}`;
+  }
+
+  function buildHeaderMeta(project) {
+    const bits = [];
+    const range = shortRange(project.start_date, project.end_date);
+    if (range) bits.push(range);
+
+    const left = daysLeftLabel(project.end_date);
+    if (left) {
+      if (left.includes('просроч')) bits.push('⚠ просрочен');
+      else if (left === 'сегодня дедлайн') bits.push('⏰ сегодня');
+    }
+    return {
+      text: bits.join(' · ') || 'Сроки не заданы',
+      overdue: !!left && left.includes('просроч'),
+    };
   }
 
   /* ============================================================
@@ -164,13 +200,10 @@
 
   function renderHeader() {
     els.name.textContent = project.name;
-    const bits = [];
-    const range = humanRange(project.start_date, project.end_date);
-    if (range) bits.push(range);
-    const left = daysLeftLabel(project.end_date);
-    if (left) bits.push(left);
-    els.meta.textContent = bits.join(' · ') || 'Сроки не заданы';
-    els.meta.classList.toggle('is-overdue', !!left && left.includes('просроч'));
+
+    const meta = buildHeaderMeta(project);
+    els.meta.textContent = meta.text;
+    els.meta.classList.toggle('is-overdue', meta.overdue);
 
     const total = tasks.length;
     const done = tasks.filter(t => t.status === 'done').length;
@@ -194,10 +227,13 @@
       const list = document.querySelector(`.kanban-list[data-status="${status}"]`);
       const countEl = document.querySelector(`.kanban-col[data-status="${status}"] .count`);
       const listTasks = tasks.filter(t => t.status === status);
-      countEl.textContent = listTasks.length;
-      list.innerHTML = '';
-      for (const task of listTasks) list.appendChild(buildKanbanCard(task));
+      if (countEl) countEl.textContent = listTasks.length;
+      if (list) {
+        list.innerHTML = '';
+        for (const task of listTasks) list.appendChild(buildKanbanCard(task));
+      }
     }
+    if (els.kanbanTotal) els.kanbanTotal.textContent = tasks.length;
   }
 
   function buildKanbanCard(task) {
@@ -389,14 +425,13 @@
           <span class="empty-icon">📊</span>
           <p>Задайте сроки проекта или задач — появится график</p>
         </div>`;
-      updateGanttNavButtons();
+      updateGanttControls();
       return;
     }
     ganttView = { ...ganttDataRange };
     drawGantt();
   }
 
-  /* --- Планировщик отрисовки через rAF --- */
   let rafPending = false;
   function scheduleDraw() {
     if (rafPending) return;
@@ -430,7 +465,6 @@
     else if (totalDays <= 365) stepDays = 30;
     else stepDays = 90;
 
-    /* Запоминаем шаг шкалы — используется стрелками навигации */
     ganttStepDays = stepDays;
 
     const ticks = [];
@@ -539,7 +573,7 @@
       empty.className = 'empty small';
       empty.innerHTML = `<p class="hint">Пока нет задач</p>`;
       container.appendChild(empty);
-      updateGanttNavButtons();
+      updateGanttControls();
       return;
     }
 
@@ -633,48 +667,70 @@
       container.appendChild(row);
     }
 
-    updateGanttNavButtons();
+    updateGanttControls();
   }
 
   /* ============================================================
-     Стрелки навигации по шкале
+     Стрелки навигации и кнопки зума
      ============================================================ */
-  function updateGanttNavButtons() {
+  function updateGanttControls() {
     const prev = els.ganttPrevBtn;
     const next = els.ganttNextBtn;
-    if (!prev || !next) return;
+    const zin = els.ganttZoomInBtn;
+    const zout = els.ganttZoomOutBtn;
 
     if (!ganttView || !ganttDataRange) {
-      prev.disabled = true;
-      next.disabled = true;
+      [prev, next, zin, zout].forEach(b => { if (b) b.disabled = true; });
       return;
     }
-    const EPS = 1000; // 1 секунда — «достаточно близко к границе»
-    prev.disabled = ganttView.min <= ganttDataRange.min + EPS;
-    next.disabled = ganttView.max >= ganttDataRange.max - EPS;
+
+    const EPS = 1000;
+    const dataSpan = ganttDataRange.max - ganttDataRange.min;
+    const viewSpan = ganttView.max - ganttView.min;
+    const minSpan = Math.min(DAY, dataSpan / 10);
+
+    if (prev) prev.disabled = ganttView.min <= ganttDataRange.min + EPS;
+    if (next) next.disabled = ganttView.max >= ganttDataRange.max - EPS;
+    if (zin)  zin.disabled  = viewSpan <= minSpan + EPS;
+    if (zout) zout.disabled = viewSpan >= dataSpan - EPS;
   }
 
-  /* Сдвиг на 1 шаг шкалы (в днях), dir = -1 → влево, +1 → вправо */
   function ganttPanByStep(dir) {
     if (!ganttView || !ganttDataRange) return;
     const dt = dir * ganttStepDays * DAY;
     const newMin = ganttView.min + dt;
     const newMax = ganttView.max + dt;
     const clamped = clampGanttView(newMin, newMax);
-    // если clamp не дал изменить вид — значит упёрлись в границу
     if (clamped.min === ganttView.min && clamped.max === ganttView.max) {
-      updateGanttNavButtons();
+      updateGanttControls();
       return;
     }
     ganttView = clamped;
     scheduleDraw();
   }
 
+  function ganttZoom(factor) {
+    if (!ganttView || !ganttDataRange) return;
+    const span = ganttView.max - ganttView.min;
+    const centerT = (ganttView.min + ganttView.max) / 2;
+    let newSpan = span * factor;
+
+    const dataSpan = ganttDataRange.max - ganttDataRange.min;
+    const minSpan = Math.min(DAY, dataSpan / 10);
+    newSpan = Math.max(minSpan, Math.min(dataSpan, newSpan));
+
+    const newMin = centerT - newSpan / 2;
+    ganttView = clampGanttView(newMin, newMin + newSpan);
+    scheduleDraw();
+  }
+
   els.ganttPrevBtn?.addEventListener('click', () => ganttPanByStep(-1));
   els.ganttNextBtn?.addEventListener('click', () => ganttPanByStep(1));
+  els.ganttZoomInBtn?.addEventListener('click', () => ganttZoom(1 / 1.4));
+  els.ganttZoomOutBtn?.addEventListener('click', () => ganttZoom(1.4));
 
   /* ============================================================
-     Взаимодействия с Gantt
+     Взаимодействия с Gantt (мышь)
      ============================================================ */
   function clampGanttView(newMin, newMax) {
     const limitMin = ganttDataRange.min;
@@ -694,7 +750,7 @@
     const el = els.gantt;
     if (!el) return;
 
-    /* ------ Мышь: зум колёсиком ------ */
+    /* Зум колёсиком */
     el.addEventListener('wheel', (e) => {
       if (!ganttView || !ganttDataRange) return;
       const axis = el.querySelector('.gantt-axis');
@@ -721,7 +777,7 @@
       scheduleDraw();
     }, { passive: false });
 
-    /* ------ Мышь: панорамирование ПКМ ------ */
+    /* Панорамирование ПКМ */
     let pan = null;
 
     el.addEventListener('mousedown', (e) => {
@@ -762,149 +818,6 @@
       ganttView = { ...ganttDataRange };
       scheduleDraw();
     });
-
-    /* ------ Тач: пинч-зум + панорама + двойной тап ------ */
-
-    function getAxisRect() {
-      const axis = el.querySelector('.gantt-axis');
-      return axis ? axis.getBoundingClientRect() : null;
-    }
-    function getSpanLimits() {
-      const dataSpan = ganttDataRange.max - ganttDataRange.min;
-      const minSpan = Math.min(DAY, dataSpan / 10);
-      return { minSpan, maxSpan: dataSpan };
-    }
-
-    let touch = null;
-    let lastTap = 0;
-
-    el.addEventListener('touchstart', (e) => {
-      if (!ganttView || !ganttDataRange) return;
-      const rect = getAxisRect();
-      if (!rect) return;
-
-      if (e.touches.length === 1) {
-        const now = Date.now();
-        if (now - lastTap < 300) {
-          e.preventDefault();
-          ganttView = { ...ganttDataRange };
-          scheduleDraw();
-          lastTap = 0;
-          return;
-        }
-        lastTap = now;
-      }
-
-      if (e.touches.length === 1) {
-        touch = {
-          mode: 'pan',
-          startX: e.touches[0].clientX,
-          width: rect.width,
-          view: { ...ganttView },
-        };
-      } else if (e.touches.length >= 2) {
-        const [t1, t2] = e.touches;
-        const midX = (t1.clientX + t2.clientX) / 2;
-        const dist = Math.abs(t1.clientX - t2.clientX) || 1;
-        let xPct = (midX - rect.left) / rect.width;
-        xPct = Math.max(0, Math.min(1, xPct));
-        const span = ganttView.max - ganttView.min;
-        touch = {
-          mode: 'pinch',
-          startDist: dist,
-          anchorTime: ganttView.min + xPct * span,
-          startSpan: span,
-        };
-      }
-    }, { passive: false });
-
-    el.addEventListener('touchmove', (e) => {
-      if (!touch || !ganttView || !ganttDataRange) return;
-      const rect = getAxisRect();
-      if (!rect) return;
-
-      if (touch.mode === 'pan') {
-        if (e.touches.length === 1) {
-          e.preventDefault();
-          const dx = e.touches[0].clientX - touch.startX;
-          const span = touch.view.max - touch.view.min;
-          const dt = -(dx / touch.width) * span;
-          ganttView = clampGanttView(touch.view.min + dt, touch.view.max + dt);
-          scheduleDraw();
-          return;
-        }
-        if (e.touches.length >= 2) {
-          e.preventDefault();
-          const [t1, t2] = e.touches;
-          const midX = (t1.clientX + t2.clientX) / 2;
-          const dist = Math.abs(t1.clientX - t2.clientX) || 1;
-          let xPct = (midX - rect.left) / rect.width;
-          xPct = Math.max(0, Math.min(1, xPct));
-          const span = ganttView.max - ganttView.min;
-          touch = {
-            mode: 'pinch',
-            startDist: dist,
-            anchorTime: ganttView.min + xPct * span,
-            startSpan: span,
-          };
-          return;
-        }
-      }
-
-      if (touch.mode === 'pinch') {
-        if (e.touches.length < 2) {
-          if (e.touches.length === 1) {
-            touch = {
-              mode: 'pan',
-              startX: e.touches[0].clientX,
-              width: rect.width,
-              view: { ...ganttView },
-            };
-          } else {
-            touch = null;
-          }
-          return;
-        }
-
-        e.preventDefault();
-
-        const [t1, t2] = e.touches;
-        const midX = (t1.clientX + t2.clientX) / 2;
-        const dist = Math.abs(t1.clientX - t2.clientX) || 1;
-
-        const scale = touch.startDist / dist;
-        const { minSpan, maxSpan } = getSpanLimits();
-        let newSpan = touch.startSpan * scale;
-        newSpan = Math.max(minSpan, Math.min(maxSpan, newSpan));
-
-        let xPct = (midX - rect.left) / rect.width;
-        xPct = Math.max(0, Math.min(1, xPct));
-
-        const newMin = touch.anchorTime - xPct * newSpan;
-        ganttView = clampGanttView(newMin, newMin + newSpan);
-        scheduleDraw();
-      }
-    }, { passive: false });
-
-    function onTouchEnd(e) {
-      if (e.touches.length === 0) {
-        touch = null;
-        return;
-      }
-      if (touch?.mode === 'pinch' && e.touches.length === 1) {
-        const rect = getAxisRect();
-        if (!rect) { touch = null; return; }
-        touch = {
-          mode: 'pan',
-          startX: e.touches[0].clientX,
-          width: rect.width,
-          view: { ...ganttView },
-        };
-      }
-    }
-
-    el.addEventListener('touchend', onTouchEnd, { passive: true });
-    el.addEventListener('touchcancel', () => { touch = null; }, { passive: true });
   }
 
   /* ============================================================
