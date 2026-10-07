@@ -408,7 +408,7 @@ textarea { min-height: auto; resize: vertical; }
 input::placeholder, textarea::placeholder { color: var(--muted-2); }
 input:focus, select:focus, textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(124,92,255,.22), 0 0 0 3px rgba(124,92,255,.22), 0 0 20px -6px var(--accent);
+  box-shadow: 0 0 0 3px rgba(124,92,255,.22), 0 0 20px -6px var(--accent);
 }
 input[type="date"] { color-scheme: dark; }
 [data-theme="light"] input[type="date"] { color-scheme: light; }
@@ -820,10 +820,8 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
   flex-direction: column;
   animation: fadeInUp .6s .15s var(--ease-out) both;
 }
-
-/* --- ОТСТУП ОТ ЛЕГЕНДЫ ДО ГРАФИКА --- */
 .section-head {
-  margin-bottom: 24px;    /* было 14px — увеличен в ~2 раза */
+  margin-bottom: 24px;
   flex: 0 0 auto;
 }
 
@@ -887,6 +885,15 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
 }
 .gantt-nav-btn svg { pointer-events: none; }
 
+/* --- Иконки fullscreen-кнопки --- */
+.gantt-fullscreen-btn .icon-exit { display: none; }
+.gantt-fullscreen-btn.is-fullscreen .icon-enter { display: none; }
+.gantt-fullscreen-btn.is-fullscreen .icon-exit  { display: block; }
+.gantt-fullscreen-btn.is-fullscreen {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .gantt-legend {
   display: flex; flex-wrap: wrap; gap: 14px;
   margin-top: 12px;
@@ -943,13 +950,43 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
   box-shadow: 0 0 8px -2px var(--danger);
 }
 
+/* ============================================================
+   Полноэкранный режим графика
+   ============================================================ */
+.gantt-section:fullscreen,
+.gantt-section:-webkit-full-screen {
+  background: var(--bg);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 16px 20px 20px;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.gantt-section:fullscreen .section-head,
+.gantt-section:-webkit-full-screen .section-head {
+  margin-bottom: 12px;
+}
+.gantt-section:fullscreen .gantt,
+.gantt-section:-webkit-full-screen .gantt {
+  padding: 16px 0 6px;
+  min-height: 0;
+  flex: 1 1 auto;
+  gap: 10px;
+}
+
 /* --- Сетка Gantt --- */
 .gantt {
   display: flex;
   flex-direction: column;
   gap: 12px;
   overflow: hidden;
-  /* Верхний padding увеличен: больше «воздуха» между легендой и осью */
   padding: 40px 0 8px;
   cursor: default;
   user-select: none;
@@ -1109,7 +1146,7 @@ select optgroup { background: var(--bg-2); color: var(--muted); }
   border-radius: 10px;
   border: 2px solid var(--accent);
   background: transparent;
-  min-width: 8px;
+  min-width: 2px;
   overflow: hidden;
   cursor: default;
   box-shadow: 0 0 12px -6px var(--accent);
@@ -1549,11 +1586,7 @@ dialog.modal[open] { animation: dialogFade .25s ease; }
     border-radius: 18px;
     min-height: 560px;
   }
-
-  /* На телефоне тоже увеличенный отступ */
-  .section-head {
-    margin-bottom: 20px;
-  }
+  .section-head { margin-bottom: 20px; }
   .section-head-row h2 { font-size: 15px; }
 
   .gantt-nav-btn {
@@ -1575,26 +1608,37 @@ dialog.modal[open] { animation: dialogFade .25s ease; }
     height: 9px;
   }
 
-  /* И на мобильном верхний отступ увеличен */
   .gantt {
     padding: 32px 0 6px;
-    gap: 10px;
+    gap: 12px;
     min-height: 420px;
   }
 
   .gantt-row {
-    grid-template-columns: 76px 1fr;
-    gap: 6px;
+    grid-template-columns: 92px 1fr;
+    gap: 8px;
   }
 
   .gantt-track { height: 48px; }
-
   .gantt-head { height: 36px; }
   .gantt-head .gantt-track { height: 36px; }
   .gantt-axis { height: 36px; }
 
-  .gantt-label { font-size: 11px; padding: 4px 0; }
-  .gantt-pct { display: none; }
+  .gantt-label-wrap {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .gantt-label {
+    font-size: 11px;
+    padding: 0;
+    max-width: 100%;
+  }
+  .gantt-pct {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 6px;
+  }
   .gantt-tick { font-size: 10px; }
   .gantt-tick::after { top: 20px; height: 12px; }
 }

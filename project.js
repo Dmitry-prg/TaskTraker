@@ -31,6 +31,7 @@
     projectForm:   document.getElementById('projectForm'),
     cancelProject: document.getElementById('cancelProject'),
     gantt:         document.getElementById('gantt'),
+    ganttSection:  document.getElementById('ganttSection'),
     subtasksList:  document.getElementById('subtasksList'),
     subtasksCounter: document.getElementById('subtasksCounter'),
     subtaskInput:  document.getElementById('subtaskInput'),
@@ -45,6 +46,7 @@
     ganttNextBtn:  document.getElementById('ganttNextBtn'),
     ganttZoomInBtn:  document.getElementById('ganttZoomInBtn'),
     ganttZoomOutBtn: document.getElementById('ganttZoomOutBtn'),
+    ganttFullscreenBtn: document.getElementById('ganttFullscreenBtn'),
   };
 
   const tTitle  = document.getElementById('tTitle');
@@ -88,11 +90,6 @@
     return 0;
   }
 
-  /* ============================================================
-     Компактная мета для шапки:
-     • диапазон дат в формате «12.10 — 20.10»
-     • просрочен / сегодня — короткие бейджи
-     ============================================================ */
   function shortRange(start, end) {
     const fmt = (s) => {
       const d = toDate(s);
@@ -605,8 +602,9 @@
 
       addTodayColumn(track);
 
-      let rightEdgePct = null;
       let outOfBounds = false;
+      let barLeftPct = null;
+      let barRightPct = null;
 
       if (s || e) {
         const ss = s ? s.getTime() : e.getTime();
@@ -614,7 +612,9 @@
         const left = pct(ss);
         const right = pct(ee + DAY);
         const width = Math.max(right - left, 0.8);
-        rightEdgePct = left + width;
+
+        barLeftPct  = left;
+        barRightPct = left + width;
 
         outOfBounds =
           (projStartD && s && s < projStartD) ||
@@ -650,14 +650,28 @@
 
       addMasks(track);
 
-      if (outOfBounds && rightEdgePct !== null) {
-        const warn = document.createElement('div');
-        warn.className = 'gantt-warn';
-        const warnPct = Math.min(Math.max(rightEdgePct - 1.5, 1), 99);
-        warn.style.left = warnPct + '%';
-        warn.textContent = '!';
-        warn.title = 'Задача выходит за рамки проекта';
-        track.appendChild(warn);
+      // Значок «!» — привязан к ВИДИМОЙ части бара
+      if (outOfBounds && barLeftPct !== null && barRightPct !== null) {
+        const visLeft  = Math.max(barLeftPct, 0);
+        const visRight = Math.min(barRightPct, 100);
+        const visWidth = visRight - visLeft;
+
+        // Показываем только если бар виден сколько-нибудь заметно
+        if (visWidth > 0.3) {
+          // Небольшой отступ от правого видимого края бара
+          const offset = Math.min(visWidth * 0.15, 2);
+          let warnPct = visRight - offset;
+          // Не даём знаку вылезти за пределы видимой части
+          warnPct = Math.max(warnPct, visLeft + 0.3);
+          warnPct = Math.min(warnPct, 99.7);
+
+          const warn = document.createElement('div');
+          warn.className = 'gantt-warn';
+          warn.style.left = warnPct + '%';
+          warn.textContent = '!';
+          warn.title = 'Задача выходит за рамки проекта';
+          track.appendChild(warn);
+        }
       }
 
       addBounds(track);
@@ -730,6 +744,60 @@
   els.ganttZoomOutBtn?.addEventListener('click', () => ganttZoom(1.4));
 
   /* ============================================================
+     Полноэкранный режим графика
+     ============================================================ */
+  function isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  async function requestFullscreenOn(el) {
+    if (!el) return;
+    if (el.requestFullscreen) return el.requestFullscreen({ navigationUI: 'hide' });
+    if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
+    throw new Error('Fullscreen API не поддерживается');
+  }
+
+  async function exitFullscreen() {
+    if (document.exitFullscreen) return document.exitFullscreen();
+    if (document.webkitExitFullscreen) return document.webkitExitFullscreen();
+  }
+
+  async function toggleGanttFullscreen() {
+    try {
+      if (!isFullscreen()) {
+        await requestFullscreenOn(els.ganttSection);
+        try {
+          if (screen.orientation && typeof screen.orientation.lock === 'function') {
+            await screen.orientation.lock('landscape');
+          }
+        } catch (_) { /* не критично */ }
+      } else {
+        await exitFullscreen();
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Не удалось переключить полноэкранный режим: ' + (err.message || err));
+    }
+  }
+
+  function updateFullscreenUi() {
+    const fs = isFullscreen();
+    const btn = els.ganttFullscreenBtn;
+    if (btn) {
+      btn.classList.toggle('is-fullscreen', fs);
+      const label = fs ? 'Выйти из полноэкранного режима' : 'На весь экран';
+      btn.title = label;
+      btn.setAttribute('aria-label', label);
+    }
+    setTimeout(() => scheduleDraw(), 120);
+  }
+
+  els.ganttFullscreenBtn?.addEventListener('click', toggleGanttFullscreen);
+
+  document.addEventListener('fullscreenchange', updateFullscreenUi);
+  document.addEventListener('webkitfullscreenchange', updateFullscreenUi);
+
+  /* ============================================================
      Взаимодействия с Gantt (мышь)
      ============================================================ */
   function clampGanttView(newMin, newMax) {
@@ -750,7 +818,6 @@
     const el = els.gantt;
     if (!el) return;
 
-    /* Зум колёсиком */
     el.addEventListener('wheel', (e) => {
       if (!ganttView || !ganttDataRange) return;
       const axis = el.querySelector('.gantt-axis');
@@ -777,7 +844,6 @@
       scheduleDraw();
     }, { passive: false });
 
-    /* Панорамирование ПКМ */
     let pan = null;
 
     el.addEventListener('mousedown', (e) => {
@@ -812,7 +878,6 @@
 
     el.addEventListener('contextmenu', (e) => e.preventDefault());
 
-    /* Двойной клик — сброс */
     el.addEventListener('dblclick', () => {
       if (!ganttDataRange) return;
       ganttView = { ...ganttDataRange };
