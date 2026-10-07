@@ -322,8 +322,8 @@
     if (maxD <= minD) maxD = new Date(minD.getTime() + 7 * DAY);
 
     const min = minD.getTime();
-    const max = maxD.getTime() + DAY; // включаем последний день целиком
-    const pad = (max - min) * 0.02;   // 2% «воздуха» по краям
+    const max = maxD.getTime() + DAY;
+    const pad = (max - min) * 0.02;
     return { min: min - pad, max: max + pad };
   }
 
@@ -343,7 +343,7 @@
     drawGantt();
   }
 
-  /* Отрисовка по текущему ganttView (вызывается при зум/пане) */
+  /* Отрисовка по текущему ganttView */
   function drawGantt() {
     if (!ganttView || !ganttDataRange) return;
     const container = els.gantt;
@@ -360,7 +360,7 @@
     const projStartPct = projStartD ? pct(projStartD.getTime()) : null;
     const projEndPct   = projEndD   ? pct(projEndD.getTime() + DAY) : null;
 
-    /* Тики — шаг подбираем по видимому диапазону */
+    /* Тики */
     const totalDays = Math.ceil((maxT - minT) / DAY);
     let stepDays;
     if (totalDays <= 10) stepDays = 1;
@@ -370,7 +370,6 @@
     else stepDays = 90;
 
     const ticks = [];
-    // округляем начало к ближайшему целому дню назад, чтобы сетка была стабильной
     const startDay = Math.floor(minT / DAY) * DAY;
     for (let t = startDay; t <= maxT + DAY; t += stepDays * DAY) {
       const centerT = t + DAY / 2;
@@ -576,19 +575,17 @@
 
   /* ============================================================
      Взаимодействия с Gantt:
-     • зум колёсиком (вокруг курсора)
-     • панорамирование правой кнопкой мыши
+     • зум колёсиком (мышь) и пинч-зум (тач)
+     • панорамирование правой кнопкой мыши и одним пальцем
      • двойной клик — сброс к полному диапазону
      ============================================================ */
 
-  /* Ограничиваем видимый диапазон рамками данных */
   function clampGanttView(newMin, newMax) {
     const limitMin = ganttDataRange.min;
     const limitMax = ganttDataRange.max;
     const vSpan = newMax - newMin;
     const rangeSpan = limitMax - limitMin;
 
-    // если вид шире данных — фиксируем на полный диапазон
     if (vSpan >= rangeSpan) {
       return { min: limitMin, max: limitMax };
     }
@@ -601,13 +598,19 @@
     const el = els.gantt;
     if (!el) return;
 
-    /* --- Зум колёсиком --- */
+    /* Отключаем нативные жесты (скролл, зум страницы) над графиком.
+       Управление масштабом и панорамированием берём на себя. */
+    el.style.touchAction = 'none';
+    el.style.webkitUserSelect = 'none';
+    el.style.userSelect = 'none';
+
+    /* ---------- ЗУМ КОЛЁСИКОМ (мышь / трекпад) ---------- */
     el.addEventListener('wheel', (e) => {
       if (!ganttView || !ganttDataRange) return;
       const axis = el.querySelector('.gantt-axis');
       if (!axis) return;
 
-      e.preventDefault(); // блокируем прокрутку страницы
+      e.preventDefault();
 
       const rect = axis.getBoundingClientRect();
       let xPct = (e.clientX - rect.left) / rect.width;
@@ -616,28 +619,23 @@
       const span = ganttView.max - ganttView.min;
       const cursorTime = ganttView.min + xPct * span;
 
-      // Плавный шаг: чувствительность ~exp(0.2 * deltaY/100).
-      // Мышь (deltaY ≈ ±100) → ~±22% за клик; трекпад — мягче.
       const norm = Math.max(-3, Math.min(3, e.deltaY / 100));
       const factor = Math.exp(norm * 0.2);
 
       let newSpan = span * factor;
 
-      // Минимальный видимый диапазон: не меньше ~1 дня,
-      // но не больше 1/10 всего диапазона данных.
       const dataSpan = ganttDataRange.max - ganttDataRange.min;
       const minSpan = Math.min(DAY, dataSpan / 10);
       newSpan = Math.max(minSpan, newSpan);
 
-      // Точка под курсором остаётся на месте
-      let newMin = cursorTime - xPct * newSpan;
-      let newMax = newMin + newSpan;
+      const newMin = cursorTime - xPct * newSpan;
+      const newMax = newMin + newSpan;
 
       ganttView = clampGanttView(newMin, newMax);
       drawGantt();
     }, { passive: false });
 
-    /* --- Панорамирование правой кнопкой --- */
+    /* ---------- ПАНОРАМИРОВАНИЕ ПРАВОЙ КНОПКОЙ МЫШИ ---------- */
     let pan = null;
 
     el.addEventListener('mousedown', (e) => {
@@ -659,10 +657,8 @@
       if (!pan) return;
       const dx = e.clientX - pan.startX;
       const span = pan.view.max - pan.view.min;
-      const dt = -(dx / pan.width) * span; // влево тянем → время вперёд
-      let newMin = pan.view.min + dt;
-      let newMax = pan.view.max + dt;
-      ganttView = clampGanttView(newMin, newMax);
+      const dt = -(dx / pan.width) * span;
+      ganttView = clampGanttView(pan.view.min + dt, pan.view.max + dt);
       drawGantt();
     });
 
@@ -676,20 +672,162 @@
     window.addEventListener('mouseup', (e) => {
       if (e.button === 2) endPan();
     });
-
-    // подстраховка: если фокус потерян — сбрасываем режим
     window.addEventListener('blur', endPan);
     window.addEventListener('mouseleave', endPan);
 
-    // отключаем контекстное меню над графиком
     el.addEventListener('contextmenu', (e) => e.preventDefault());
 
-    // двойной клик — сброс к полному диапазону
+    /* Двойной клик — сброс */
     el.addEventListener('dblclick', () => {
       if (!ganttDataRange) return;
       ganttView = { ...ganttDataRange };
       drawGantt();
     });
+
+    /* ---------- TOUCH: ПИНЧ-ЗУМ И ПАНОРАМИРОВАНИЕ ПАЛЬЦЕМ ---------- */
+
+    // Возвращает актуальный прямоугольник оси (позицию считаем в реальном времени)
+    function getAxisRect() {
+      const axis = el.querySelector('.gantt-axis');
+      return axis ? axis.getBoundingClientRect() : null;
+    }
+
+    // Ограничения диапазона
+    function getSpanLimits() {
+      const dataSpan = ganttDataRange.max - ganttDataRange.min;
+      const minSpan = Math.min(DAY, dataSpan / 10);
+      return { minSpan, maxSpan: dataSpan };
+    }
+
+    let touch = null;
+
+    el.addEventListener('touchstart', (e) => {
+      if (!ganttView || !ganttDataRange) return;
+      const rect = getAxisRect();
+      if (!rect) return;
+
+      if (e.touches.length === 1) {
+        // Один палец → панорамирование
+        touch = {
+          mode: 'pan',
+          startX: e.touches[0].clientX,
+          width: rect.width,
+          view: { ...ganttView },
+        };
+      } else if (e.touches.length >= 2) {
+        // Два пальца → пинч-зум
+        const [t1, t2] = e.touches;
+        const midX = (t1.clientX + t2.clientX) / 2;
+        const dist = Math.abs(t1.clientX - t2.clientX) || 1;
+        let xPct = (midX - rect.left) / rect.width;
+        xPct = Math.max(0, Math.min(1, xPct));
+        const span = ganttView.max - ganttView.min;
+        touch = {
+          mode: 'pinch',
+          startDist: dist,
+          anchorTime: ganttView.min + xPct * span,
+          startSpan: span,
+        };
+      }
+    }, { passive: true });
+
+    el.addEventListener('touchmove', (e) => {
+      if (!touch || !ganttView || !ganttDataRange) return;
+      const rect = getAxisRect();
+      if (!rect) return;
+
+      /* --- Панорамирование одним пальцем --- */
+      if (touch.mode === 'pan') {
+        if (e.touches.length === 1) {
+          e.preventDefault(); // блокируем прокрутку страницы
+          const dx = e.touches[0].clientX - touch.startX;
+          const span = touch.view.max - touch.view.min;
+          const dt = -(dx / touch.width) * span;
+          ganttView = clampGanttView(touch.view.min + dt, touch.view.max + dt);
+          drawGantt();
+          return;
+        }
+        // Перескок на два пальца — начинаем пинч
+        if (e.touches.length >= 2) {
+          e.preventDefault();
+          const [t1, t2] = e.touches;
+          const midX = (t1.clientX + t2.clientX) / 2;
+          const dist = Math.abs(t1.clientX - t2.clientX) || 1;
+          let xPct = (midX - rect.left) / rect.width;
+          xPct = Math.max(0, Math.min(1, xPct));
+          const span = ganttView.max - ganttView.min;
+          touch = {
+            mode: 'pinch',
+            startDist: dist,
+            anchorTime: ganttView.min + xPct * span,
+            startSpan: span,
+          };
+          return;
+        }
+      }
+
+      /* --- Пинч-зум --- */
+      if (touch.mode === 'pinch') {
+        if (e.touches.length < 2) {
+          // Потеряли один палец — превращаемся в панорамирование
+          if (e.touches.length === 1) {
+            touch = {
+              mode: 'pan',
+              startX: e.touches[0].clientX,
+              width: rect.width,
+              view: { ...ganttView },
+            };
+          } else {
+            touch = null;
+          }
+          return;
+        }
+
+        e.preventDefault();
+
+        const [t1, t2] = e.touches;
+        const midX = (t1.clientX + t2.clientX) / 2;
+        const dist = Math.abs(t1.clientX - t2.clientX) || 1;
+
+        // scale > 1 → расстояние между пальцами уменьшилось → zoom in (span уменьшается)
+        const scale = touch.startDist / dist;
+
+        const { minSpan, maxSpan } = getSpanLimits();
+        let newSpan = touch.startSpan * scale;
+        newSpan = Math.max(minSpan, Math.min(maxSpan, newSpan));
+
+        // Положение «якорной» точки времени относительно оси — по текущему центру касания
+        let xPct = (midX - rect.left) / rect.width;
+        xPct = Math.max(0, Math.min(1, xPct));
+
+        const newMin = touch.anchorTime - xPct * newSpan;
+        const newMax = newMin + newSpan;
+
+        ganttView = clampGanttView(newMin, newMax);
+        drawGantt();
+      }
+    }, { passive: false });
+
+    function onTouchEnd(e) {
+      if (e.touches.length === 0) {
+        touch = null;
+        return;
+      }
+      // Переход пинч → панорамирование, если остался один палец
+      if (touch?.mode === 'pinch' && e.touches.length === 1) {
+        const rect = getAxisRect();
+        if (!rect) { touch = null; return; }
+        touch = {
+          mode: 'pan',
+          startX: e.touches[0].clientX,
+          width: rect.width,
+          view: { ...ganttView },
+        };
+      }
+    }
+
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    el.addEventListener('touchcancel', () => { touch = null; }, { passive: true });
   }
 
   /* ============================================================
